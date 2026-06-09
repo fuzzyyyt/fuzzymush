@@ -2,21 +2,17 @@ import requests
 import re
 from flask import Flask, render_template, jsonify
 
-app = Flask(__name__)
-
-# [유튜브 데이터 크롤링 및 데이터 매핑 함수]
+app = Flask(__name__, template_folder='.', static_folder='.')
 
 def format_view_count(count):
     if count is None:
         return None
     return f"{count/1000:.1f}K" if count >= 1000 else str(count)
 
-
 def format_like_count(count):
     if count is None:
         return None
     return f"{count:,}개"
-
 
 def parse_number(text):
     if not text:
@@ -24,10 +20,14 @@ def parse_number(text):
     raw = text.replace(',', '').strip()
     return int(raw) if raw.isdigit() else None
 
-
 def process_youtube_data(project):
-    project["views"] = "연동 중.."
-    project["likes"] = "연동 중.."
+    if project["id"] == 1:
+        project["views"] = "268회"
+        project["likes"] = "1개"
+    else:
+        project["views"] = "897회"
+        project["likes"] = "10개"
+        
     project["img_url"] = f"https://img.youtube.com/vi/{project['youtube_id']}/maxresdefault.jpg"
     project["link"] = f"https://www.youtube.com/shorts/{project['youtube_id']}"
 
@@ -40,7 +40,6 @@ def process_youtube_data(project):
         if response.status_code == 200:
             page_source = response.text
 
-            # 실시간 조회수 자동 추출
             view_match = re.search(r'"viewCount"\s*:\s*"([\d,]+)"', page_source)
             if not view_match:
                 view_match = re.search(r'"viewCountText"\s*:\s*\{\s*"simpleText"\s*:\s*"([\d,]+)\s*조회수"', page_source)
@@ -50,7 +49,6 @@ def process_youtube_data(project):
                 if views_raw is not None:
                     project["views"] = format_view_count(views_raw)
 
-            # 실시간 좋아요 수 자동 추출
             like_match = re.search(r'"label"\s*:\s*"좋아요\s*([\d,]+)회"', page_source)
             if not like_match:
                 like_match = re.search(r'좋아요\s*([\d,]+)회', page_source)
@@ -62,9 +60,6 @@ def process_youtube_data(project):
     except Exception as e:
         print(f"유튜브 데이터 수집 에러: {e}")
 
-# =========================================================================
-# 포트폴리오 메인 데이터셋 (모든 실제 파일명 및 유튜브 ID 적용 완료)
-# =========================================================================
 PORTFOLIO_DATA = {
     "creator_info": {
         "name": "정지윤",
@@ -75,32 +70,32 @@ PORTFOLIO_DATA = {
         {
             "id": 1,
             "type": "shorts",
-            "youtube_id": "72OD70BKlkk",  # 1번: 뮤직 컴플렉스 서울/부산점 실제 쇼츠 ID
+            "youtube_id": "72OD70BKlkk",
             "title": "🎵 부산 lp카페 뮤직 컴플렉스 소개",
             "subtitle": "아날로그 감성을 깨우는 최대 규모 LP 카페 청음기"
         },
         {
             "id": 2,
             "type": "shorts",
-            "youtube_id": "cBDyfHAQ_Rk",  # 2번: 부산 시민공원 봄 피크닉 실제 쇼츠 ID [00:00:00]
+            "youtube_id": "cBDyfHAQ_Rk",
             "title": "🌸 부산 시민공원 봄 피크닉",
             "subtitle": "따스한 햇살과 바람, 봄의 미학을 담아낸 숏폼 필름"
         },
         {
             "id": 3,
             "type": "product",
-            "img_url": "/static/IMG_9791.PNG",  # 3번: 내 static 폴더 안의 기타 키링 이미지 파일명
-            "title": "🎸 NFC 태그 기타피크 키링 소개 내용및 이미지",
+            "img_url": "./IMG_9791.PNG", 
+            "title": "🎸 NFC 태그 기타피크 키링 소개 내용 및 이미지",
             "subtitle": "터치 한 번으로 나의 시그니처 플레이리스트를 연결하는 굿즈 디자인",
-            
+            "link": "https://github.com/"
         },
         {
             "id": 4,
             "type": "web",
-            "img_url": "/static/music.jpeg",  # 4번: 내 static 폴더 안의 사이트 썸네일 이미지 파일명
+            "img_url": "./music.jpeg", 
             "title": "💿 lp카페 뮤직 컴플렉스 내가 만든 사이트",
             "subtitle": "LP 샵의 강렬한 아이덴티티와 공간감을 웹 UI로 재해석한 아카이빙 사이트",
-            "link": "https://fuzzymush.aiapp.help"
+            "link": "https://fuzzymush.aiapp.help"  # 알려준 실제 웹사이트 링크 반영!
         }
     ]
 }
@@ -119,13 +114,19 @@ def get_short_stats():
 
 @app.route('/')
 def home():
-    # 방문자가 들어올 때 1, 2번 쇼츠의 실시간 스탯과 썸네일을 갱신합니다.
     get_short_stats()
     return render_template('index.html', data=PORTFOLIO_DATA)
 
-@app.route('/stats')
-def stats():
-    return jsonify({"shorts": get_short_stats()})
+def build_static_pages():
+    print("🚀 GitHub Pages용 실시간 데이터 융합 정적 빌드 시작...")
+    get_short_stats()
+    with app.app_context():
+        rendered_html = render_template('index.html', data=PORTFOLIO_DATA)
+    with open('index.html', 'w', encoding='utf-8') as f:
+        f.write(rendered_html)
+    print("✨ index.html 배포 파일 정밀 생성 완료!")
 
 if __name__ == '__main__':
+    build_static_pages()
     app.run(debug=True, port=5000)
+    
